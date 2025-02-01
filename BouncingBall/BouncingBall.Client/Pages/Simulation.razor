@@ -1,0 +1,147 @@
+﻿@page "/simulation"
+@inject IJSRuntime JS
+@rendermode InteractiveWebAssembly
+<button @onclick="() => hexagon.RotationSpeed += 0.01">Increase Rotation Speed</button>
+<button @onclick="() => hexagon.RotationSpeed -= 0.01">Decrease Rotation Speed</button>
+<button @onclick="() => ball.Vx += 2">Kick Ball Right</button>
+<button @onclick="() => ball.Vx -= 2">Kick Ball Left</button>
+<canvas id="simulationCanvas" width="800" height="600"></canvas>
+
+@code {
+    private Ball ball = new Ball();
+    private Hexagon hexagon = new Hexagon();
+    private DotNetObjectReference<Simulation> objRef;
+
+    protected override void OnInitialized()
+    {
+        objRef = DotNetObjectReference.Create(this);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            
+            await JS.InvokeVoidAsync("simulation.start", objRef);
+        }
+    }
+
+    [JSInvokable]
+    public IDictionary<string, object> UpdateSimulation()
+    {
+        // Update physics
+        UpdateBall();
+        RotateHexagon();
+
+        // Prepare data to send to JavaScript
+        var data = new Dictionary<string, object>
+        {
+            { "ball", ball },
+            { "hexagon", hexagon }
+        };
+        return data;
+    }
+
+    private void UpdateBall()
+    {
+        // Apply gravity
+        ball.Vy += PhysicsConstants.Gravity;
+
+        // Update position
+        ball.X += ball.Vx;
+        ball.Y += ball.Vy;
+
+        // Apply friction
+        ball.Vx *= PhysicsConstants.Friction;
+        ball.Vy *= PhysicsConstants.Friction;
+
+        // Handle collisions
+        HandleCollisions();
+    }
+
+    private void RotateHexagon()
+    {
+        hexagon.Rotation += hexagon.RotationSpeed;
+    }
+
+    private void HandleCollisions()
+    {
+        // Convert ball's position relative to hexagon's center
+        double dx = ball.X - hexagon.CenterX;
+        double dy = ball.Y - hexagon.CenterY;
+
+        // Rotate the coordinates opposite to hexagon's rotation
+        double sin = Math.Sin(-hexagon.Rotation);
+        double cos = Math.Cos(-hexagon.Rotation);
+
+        double rotatedX = dx * cos - dy * sin;
+        double rotatedY = dx * sin + dy * cos;
+
+        // Check collision with hexagon's sides
+        if (IsOutsideHexagon(rotatedX, rotatedY, hexagon.Radius - ball.Radius))
+        {
+            // Calculate normal angle at the collision point
+            double angle = Math.Atan2(rotatedY, rotatedX);
+            double normalAngle = Math.Round(angle / (Math.PI / 3)) * (Math.PI / 3);
+
+            // Reflect the ball's velocity
+            double velocityMagnitude = Math.Sqrt(ball.Vx * ball.Vx + ball.Vy * ball.Vy);
+            double incidentAngle = Math.Atan2(ball.Vy, ball.Vx);
+            double reflectedAngle = 2 * normalAngle - incidentAngle;
+
+            ball.Vx = velocityMagnitude * Math.Cos(reflectedAngle) * PhysicsConstants.Elasticity;
+            ball.Vy = velocityMagnitude * Math.Sin(reflectedAngle) * PhysicsConstants.Elasticity;
+
+            // Move the ball just inside the boundary to prevent sticking
+            double overlap = hexagon.Radius - ball.Radius - Math.Sqrt(rotatedX * rotatedX + rotatedY * rotatedY);
+            rotatedX += Math.Cos(normalAngle) * overlap;
+            rotatedY += Math.Sin(normalAngle) * overlap;
+
+            // Rotate coordinates back
+            dx = rotatedX * cos + rotatedY * sin;
+            dy = -rotatedX * sin + rotatedY * cos;
+
+            ball.X = hexagon.CenterX + dx;
+            ball.Y = hexagon.CenterY + dy;
+        }
+    }
+
+    private bool IsOutsideHexagon(double x, double y, double radius)
+    {
+        // Simplified check: If distance from center exceeds radius
+        double distance = Math.Sqrt(x * x + y * y);
+        return distance > radius;
+    }
+
+    public void Dispose()
+    {
+        objRef?.Dispose();
+    }
+
+    // Constants.cs
+    public static class PhysicsConstants
+    {
+        public const double Gravity = 0.5;
+        public const double Friction = 0.99;
+        public const double Elasticity = 0.9; // Coefficient of restitution
+    }
+    // Models/Ball.cs
+    public class Ball
+    {
+        public double X { get; set; } = 400;
+        public double Y { get; set; } = 100;
+        public double Radius { get; set; } = 15;
+        public double Vx { get; set; } = 2; // Velocity X
+        public double Vy { get; set; } = 0; // Velocity Y
+    }
+
+    // Models/Hexagon.cs
+    public class Hexagon
+    {
+        public double CenterX { get; set; } = 400;
+        public double CenterY { get; set; } = 300;
+        public double Radius { get; set; } = 200;
+        public double Rotation { get; set; } = 0;
+        public double RotationSpeed { get; set; } = 0.02;
+    }
+}

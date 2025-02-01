@@ -1,0 +1,81 @@
+﻿@page "/"
+
+<PageTitle>Home</PageTitle>
+
+<h1>AI Code Showdown - Blazor WebAssembly .NET 9</h1>
+
+<h4>
+    AI Prompt:
+</h4>
+<p>
+    Write a blazor web app program that shows a ball bouncing inside a spinning hexagon. The ball should be affected by gravity and friction, and it must bounce off the rotating walls realistically
+</p>
+<hr />
+<h5>In summary, AI models vary in their performance and solutions. Below are the results of different AI models:</h5>
+
+<ul>
+    <li>
+        <NavLink href="o3mini">ChatGPT - o3-mini</NavLink>
+        <ul>
+            <li>✅ Success</li>
+            <li>used alot of javascript code (38 lines)</li>
+        </ul>
+    </li>
+    <li>
+        <NavLink href="o3mini">Gemini - 2.0 Flash</NavLink>
+        <ul>
+            <li>✅ Success</li>
+            <li>No Javascript code!</li>
+            <li>I am most impressed with the Google Gemini. It nailed it in the first attempt and uses the least amount of code and does not use Javascript. </li>
+            <li>Had the most correct implementation in using the latest techniques.</li>
+        </ul>
+    </li>
+    <li>
+        <NavLink href="qwen">Qwen 2.5 MAX </NavLink>
+        <ul>
+            <li>❌ Failed</li>
+            <li>alot of javascript code</li>
+            <li>Encountered rendering issues causing unexpected behavior.</li>
+        </ul>
+    </li>
+    <li>
+        <NavLink href="qwen-2nd-attempt">Qwen 2.5 MAX 2nd Attempt</NavLink>
+        <ul>
+            <li>❌ Failed</li>
+            <li>alot of javascript code</li>
+            <li>Second attempt led to similar issues; unable to resolve the initial problems.</li>
+        </ul>
+    </li>
+    <li>
+        <NavLink href="deepseek">DeepSeek </NavLink>
+        <ul>
+            <li>❌ Failed</li>
+            <li>alot of javascript code</li>
+            <li>tried to run code fix and still didn't work</li>
+        </ul>
+    </li>
+    <li>
+        <NavLink href="deepseek-r1">DeepSeek R1</NavLink>
+        <ul>
+            <li>❌ Failed</li>
+            <li>I will have to give deepseek r1 a chance later</li>
+            <li>Deekseek r1 - could not run servers too busy</li>
+        </ul>
+    </li>
+    <li>
+        <NavLink href="simulation">Copilot Think Deeper</NavLink>
+        <ul>
+            <li>✅ Success</li>
+            <li>alot of javascript code (53 lines)</li>
+            <li>This had the strangest implementation. It made me create a component called simulation and reference itself. </li>
+        </ul>
+    </li>
+    <li>
+        <NavLink href="claude">Claude 3.5 Sonnet</NavLink>
+        <ul>
+            <li>✅ Success</li>
+            <li>2nd attempt Fixed the issue where the ball would pass through the hexagon by adjusting collision detection.</li>
+            <li>No Javascript code!</li>
+        </ul>
+    </li>
+</ul>

@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35707.178 d17.12
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BouncingBall", "BouncingBall\BouncingBall\BouncingBall.csproj", "{4369DA46-F762-4B11-80E8-BEA52976F342}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BouncingBall.Client", "BouncingBall\BouncingBall.Client\BouncingBall.Client.csproj", "{A540D3F0-C23A-40E8-B01E-BE3365D2F6C5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4369DA46-F762-4B11-80E8-BEA52976F342}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4369DA46-F762-4B11-80E8-BEA52976F342}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4369DA46-F762-4B11-80E8-BEA52976F342}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4369DA46-F762-4B11-80E8-BEA52976F342}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A540D3F0-C23A-40E8-B01E-BE3365D2F6C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A540D3F0-C23A-40E8-B01E-BE3365D2F6C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A540D3F0-C23A-40E8-B01E-BE3365D2F6C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A540D3F0-C23A-40E8-B01E-BE3365D2F6C5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

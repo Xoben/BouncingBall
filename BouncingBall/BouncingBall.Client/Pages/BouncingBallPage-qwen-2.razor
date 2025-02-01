@@ -1,0 +1,141 @@
+﻿@page "/qwen-2nd-attempt"
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveWebAssembly
+<h3>Bouncing Ball Inside a Spinning Hexagon</h3>
+
+<svg width="600" height="600" style="border: 1px solid black;">
+    <!-- Hexagon -->
+    <polygon id="hexagon" points="@HexagonPoints" fill="none" stroke="blue" stroke-width="2" transform="rotate(@rotationAngle, 300, 300)" />
+
+    <!-- Ball -->
+    <circle cx="@ballX" cy="@ballY" r="10" fill="red" />
+</svg>
+
+@code {
+    private double rotationAngle = 0; // Rotation angle of the hexagon
+    private double ballX = 300;       // Ball's X position
+    private double ballY = 150;       // Ball's Y position
+    private double velocityX = 2;     // Ball's horizontal velocity
+    private double velocityY = 3;     // Ball's vertical velocity
+    private double gravity = 0.1;     // Gravity effect
+    private double friction = 0.99;   // Friction to slow down the ball
+    private double hexagonRadius = 200; // Radius of the hexagon
+    private string HexagonPoints { get; set; } = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Generate the hexagon points
+            HexagonPoints = GenerateHexagonPoints(300, 300, hexagonRadius);
+
+            // Start the JavaScript animation loop
+            await JSRuntime.InvokeVoidAsync("startAnimation", DotNetObjectReference.Create(this));
+        }
+    }
+
+    [JSInvokable]
+    public void UpdatePhysics()
+    {
+        // Apply gravity
+        velocityY += gravity;
+
+        // Update ball position
+        ballX += velocityX;
+        ballY += velocityY;
+
+        // Check for collisions with the hexagon walls
+        if (IsOutsideHexagon(ballX, ballY))
+        {
+            ResolveCollision();
+        }
+
+        // Apply friction
+        velocityX *= friction;
+        velocityY *= friction;
+
+        // Rotate the hexagon
+        rotationAngle = (rotationAngle + 1) % 360;
+
+        // Trigger re-render
+        StateHasChanged();
+    }
+
+    private bool IsOutsideHexagon(double x, double y)
+    {
+        // Convert ball position to hexagon's local coordinate system
+        double angle = Math.PI / 3; // 60 degrees in radians
+        double centerX = 300, centerY = 300;
+
+        for (int i = 0; i < 6; i++)
+        {
+            double x1 = centerX + hexagonRadius * Math.Cos(i * angle);
+            double y1 = centerY + hexagonRadius * Math.Sin(i * angle);
+            double x2 = centerX + hexagonRadius * Math.Cos((i + 1) * angle);
+            double y2 = centerY + hexagonRadius * Math.Sin((i + 1) * angle);
+
+            if (PointToLineDistance(x, y, x1, y1, x2, y2) > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void ResolveCollision()
+    {
+        // Reverse velocity components to simulate bouncing
+        velocityX = -velocityX * 0.8; // 80% energy retained
+        velocityY = -velocityY * 0.8;
+    }
+
+    private double PointToLineDistance(double px, double py, double x1, double y1, double x2, double y2)
+    {
+        double A = px - x1;
+        double B = py - y1;
+        double C = x2 - x1;
+        double D = y2 - y1;
+
+        double dot = A * C + B * D;
+        double len_sq = C * C + D * D;
+        double param = dot / len_sq;
+
+        double xx, yy;
+
+        if (param < 0)
+        {
+            xx = x1;
+            yy = y1;
+        }
+        else if (param > 1)
+        {
+            xx = x2;
+            yy = y2;
+        }
+        else
+        {
+            xx = x1 + param * C;
+            yy = y1 + param * D;
+        }
+
+        double dx = px - xx;
+        double dy = py - yy;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private string GenerateHexagonPoints(double centerX, double centerY, double radius)
+    {
+        var points = new List<string>();
+        double angle = Math.PI / 3; // 60 degrees in radians
+
+        for (int i = 0; i < 6; i++)
+        {
+            double x = centerX + radius * Math.Cos(i * angle);
+            double y = centerY + radius * Math.Sin(i * angle);
+            points.Add($"{x},{y}");
+        }
+
+        return string.Join(" ", points);
+    }
+}

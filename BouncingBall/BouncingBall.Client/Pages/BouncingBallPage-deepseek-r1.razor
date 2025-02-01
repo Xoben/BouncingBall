@@ -1,0 +1,141 @@
+﻿@page "/deepseek-r1"
+@implements IDisposable
+@inject IJSRuntime JS
+@rendermode InteractiveWebAssembly
+<canvas @ref="canvasRef" width="800" height="600" style="border:1px solid #ccc"></canvas>
+
+@code {
+    // Canvas reference and JS module
+    private ElementReference canvasRef;
+    private IJSObjectReference? module;
+
+    // Simulation variables
+    private double ballX = 400;  // start at canvas center
+    private double ballY = 300;
+    private double ballVX = 4;   // initial horizontal velocity
+    private double ballVY = -4;  // initial vertical velocity
+    private double gravity = 0.2;
+    private double friction = 0.99;
+    private double ballRadius = 10;
+    private double hexagonRotation = 0;
+    private double hexagonRotationSpeed = 0.02;
+
+    // A timer for the animation loop (roughly 60 FPS)
+    private System.Threading.Timer? timer;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Import the JavaScript module.
+            module = await JS.InvokeAsync<IJSObjectReference>("import", "/canvasInterop.js");
+            // Start the update loop (every 16 ms ~ 60fps).
+            timer = new System.Threading.Timer(Update, null, 0, 16);
+        }
+    }
+
+    private async void Update(object? state)
+    {
+        // --- Update Physics ---
+        // Apply gravity.
+        ballVY += gravity;
+        // Update ball position.
+        ballX += ballVX;
+        ballY += ballVY;
+        // Apply friction.
+        ballVX *= friction;
+        ballVY *= friction;
+
+        // Get hexagon vertices.
+        var hexagon = GetHexagonVertices(400, 300, 250, hexagonRotation);
+        // For each hexagon edge, check for collision and reflect velocity.
+        for (int i = 0; i < 6; i++)
+        {
+            var p1 = hexagon[i];
+            var p2 = hexagon[(i + 1) % 6];
+            (double dist, double nx, double ny) = DistanceToLine(ballX, ballY, p1, p2);
+            if (dist < ballRadius)
+            {
+                // Check if the ball is moving toward the wall.
+                double dot = ballVX * nx + ballVY * ny;
+                if (dot < 0)
+                {
+                    // Reflect velocity.
+                    ballVX -= 2 * dot * nx;
+                    ballVY -= 2 * dot * ny;
+                    // Move the ball out of penetration.
+                    double overlap = ballRadius - dist;
+                    ballX += nx * overlap;
+                    ballY += ny * overlap;
+                }
+            }
+        }
+
+        // Update the hexagon rotation.
+        hexagonRotation += hexagonRotationSpeed;
+
+        // --- Render ---
+        if (module is not null)
+        {
+            await module.InvokeVoidAsync("drawScene", canvasRef, ballX, ballY, ballRadius, hexagonRotation);
+        }
+    }
+
+    /// <summary>
+    /// Calculates the perpendicular distance from point (x, y) to the line segment from p1 to p2.
+    /// Also returns the normalized vector (nx, ny) pointing from the line to the point.
+    /// </summary>
+    private (double dist, double nx, double ny) DistanceToLine(double x, double y, (double x, double y) p1, (double x, double y) p2)
+    {
+        double A = x - p1.x;
+        double B = y - p1.y;
+        double C = p2.x - p1.x;
+        double D = p2.y - p1.y;
+        double dot = A * C + B * D;
+        double len_sq = C * C + D * D;
+        double param = len_sq != 0 ? dot / len_sq : -1;
+        double xx, yy;
+        if (param < 0)
+        {
+            xx = p1.x;
+            yy = p1.y;
+        }
+        else if (param > 1)
+        {
+            xx = p2.x;
+            yy = p2.y;
+        }
+        else
+        {
+            xx = p1.x + param * C;
+            yy = p1.y + param * D;
+        }
+        double dx = x - xx;
+        double dy = y - yy;
+        double dist = Math.Sqrt(dx * dx + dy * dy);
+        double nx = dist == 0 ? 0 : dx / dist;
+        double ny = dist == 0 ? 0 : dy / dist;
+        return (dist, nx, ny);
+    }
+
+    /// <summary>
+    /// Returns the list of vertices for a hexagon centered at (centerX, centerY) with the given radius and rotation.
+    /// </summary>
+    private List<(double x, double y)> GetHexagonVertices(double centerX, double centerY, double radius, double rotation)
+    {
+        var vertices = new List<(double x, double y)>();
+        for (int i = 0; i < 6; i++)
+        {
+            double angle = rotation + i * Math.PI / 3;
+            double x = centerX + radius * Math.Cos(angle);
+            double y = centerY + radius * Math.Sin(angle);
+            vertices.Add((x, y));
+        }
+        return vertices;
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
+}

@@ -1,0 +1,114 @@
+﻿@page "/gemini"
+@using System.Numerics
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveWebAssembly
+
+<div style="width: 500px; height: 500px; position: relative; border: 1px solid black;">
+    <svg width="500" height="500" viewBox="-250 -250 500 500">
+        <polygon points="@HexagonPoints" style="fill: lightgray; stroke: black; stroke-width: 2;" />
+        <circle cx="@BallX" cy="@BallY" r="10" fill="red" />
+    </svg>
+</div>
+
+@code {
+    private double BallX = 0;
+    private double BallY = 0;
+    private double BallVX = 5;
+    private double BallVY = 0;
+    private double Gravity = 0.5;
+    private double Friction = 0.98;
+    private double Rotation = 0;
+    private double RotationSpeed = 2;
+    private string HexagonPoints = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Initialize hexagon points
+            UpdateHexagonPoints();
+
+            // Start the animation loop
+            await Task.Run(async () =>
+            {
+                while (true)
+                {
+                    // Update ball position and velocity
+                    BallVY += Gravity;
+                    BallX += BallVX;
+                    BallY += BallVY;
+
+                    // Apply friction
+                    BallVX *= Friction;
+                    BallVY *= Friction;
+
+
+                    // Handle collisions with hexagon walls
+                    CheckCollisions();
+
+                    // Rotate the hexagon
+                    Rotation += RotationSpeed;
+                    UpdateHexagonPoints();
+
+                    // Force re-render
+                    await InvokeAsync(StateHasChanged);
+
+                    // Control animation speed (adjust as needed)
+                    await Task.Delay(16); // Approximately 60 frames per second
+                }
+            });
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private void UpdateHexagonPoints()
+    {
+        HexagonPoints = "";
+        for (int i = 0; i < 6; i++)
+        {
+            double angle = Math.PI * 2 / 6 * i + Rotation * Math.PI / 180; // Convert Rotation to radians
+            double x = 200 * Math.Cos(angle);
+            double y = 200 * Math.Sin(angle);
+            HexagonPoints += $"{x} {y},";
+        }
+        HexagonPoints = HexagonPoints.TrimEnd(',');
+    }
+
+    private void CheckCollisions()
+    {
+        // This is a simplified collision detection.  A more robust approach would involve
+        // calculating the distance to each line segment of the hexagon.
+
+        double radius = 200; // Radius of the hexagon
+        double ballRadius = 10; // Radius of the ball
+
+        for (int i = 0; i < 6; i++)
+        {
+            double angle1 = Math.PI * 2 / 6 * i + Rotation * Math.PI / 180;
+            double angle2 = Math.PI * 2 / 6 * ((i + 1) % 6) + Rotation * Math.PI / 180;
+
+            double x1 = radius * Math.Cos(angle1);
+            double y1 = radius * Math.Sin(angle1);
+            double x2 = radius * Math.Cos(angle2);
+            double y2 = radius * Math.Sin(angle2);
+
+            //Basic collision check - checks if the ball's center is within a slightly larger hexagon:
+            double dx = BallX;
+            double dy = BallY;
+
+            //Very simplified collision response. Needs improvement for realistic bouncing.
+            if (Math.Sqrt(dx * dx + dy * dy) >= radius - ballRadius)
+            {
+                // Crude bounce - reverse velocities.  Needs more sophisticated vector math for realism.
+                BallVX *= -1;
+                BallVY *= -1;
+
+                //Push the ball slightly out of the wall to prevent sticking.
+                double angleToCenter = Math.Atan2(dy, dx);
+                BallX = (radius - ballRadius) * Math.Cos(angleToCenter);
+                BallY = (radius - ballRadius) * Math.Sin(angleToCenter);
+
+            }
+        }
+    }
+}

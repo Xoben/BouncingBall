@@ -1,0 +1,17 @@
+﻿@page "/deepseek"
+
+@rendermode InteractiveWebAssembly
+@inject IJSRuntime JSRuntime
+
+<canvas id="simulationCanvas" width="400" height="400"></canvas>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("initializeSimulation", "simulationCanvas");
+        }
+    }
+
+}

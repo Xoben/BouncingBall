@@ -1,0 +1,145 @@
+﻿@page "/claude"
+@using System.Numerics
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveWebAssembly
+
+<div class="game-container">
+    <svg width="800" height="600">
+        <g transform="translate(400,300) rotate(@(_rotation))">
+            @foreach (var line in _hexagonLines)
+            {
+                <line x1="@line.Item1.X" y1="@line.Item1.Y"
+                      x2="@line.Item2.X" y2="@line.Item2.Y"
+                      stroke="black" stroke-width="2" />
+            }
+        </g>
+        <circle cx="@(_ballPos.X)" cy="@(_ballPos.Y)" r="10" fill="red" />
+    </svg>
+</div>
+
+@code {
+    private float _rotation = 0;
+    private Vector2 _ballPos = new(400, 300);
+    private Vector2 _ballVel = new(2, 0);
+    private const float Gravity = 0.5f;
+    private const float Friction = 0.98f;
+    private const float Restitution = 0.8f;
+    private const float HexagonRadius = 150;
+    private const float BallRadius = 10;
+    private List<(Vector2, Vector2)> _hexagonLines = new();
+    private System.Threading.Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        CreateHexagon();
+        _timer = new System.Threading.Timer(GameLoop, null, 0, 16);
+    }
+
+    private void CreateHexagon()
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            float angle1 = i * MathF.PI / 3;
+            float angle2 = (i + 1) * MathF.PI / 3;
+
+            Vector2 p1 = new(
+                HexagonRadius * MathF.Cos(angle1),
+                HexagonRadius * MathF.Sin(angle1)
+            );
+            Vector2 p2 = new(
+                HexagonRadius * MathF.Cos(angle2),
+                HexagonRadius * MathF.Sin(angle2)
+            );
+
+            _hexagonLines.Add((p1, p2));
+        }
+    }
+
+    private async void GameLoop(object? state)
+    {
+        _rotation += 0.5f;
+
+        // Apply gravity
+        _ballVel.Y += Gravity;
+
+        // Apply friction
+        _ballVel *= Friction;
+
+        // Update position
+        Vector2 newPos = _ballPos + _ballVel;
+        bool collisionOccurred = false;
+
+        // Check collisions with all walls
+        foreach (var line in _hexagonLines)
+        {
+            var rotatedLine = (
+                RotatePoint(line.Item1, _rotation * MathF.PI / 180) + new Vector2(400, 300),
+                RotatePoint(line.Item2, _rotation * MathF.PI / 180) + new Vector2(400, 300)
+            );
+
+            if (CheckCollision(newPos, rotatedLine.Item1, rotatedLine.Item2))
+            {
+                collisionOccurred = true;
+
+                // Calculate normal of the wall
+                Vector2 wall = rotatedLine.Item2 - rotatedLine.Item1;
+                Vector2 normal = Vector2.Normalize(new Vector2(-wall.Y, wall.X));
+
+                // Reflect velocity
+                _ballVel = Vector2.Reflect(_ballVel, normal) * Restitution;
+
+                // Correct position - push ball away from wall
+                float penetrationDepth = BallRadius - PointLineDistance(newPos, rotatedLine.Item1, rotatedLine.Item2);
+                if (penetrationDepth > 0)
+                {
+                    newPos += normal * penetrationDepth;
+                }
+            }
+        }
+
+        // Safety bounds check
+        Vector2 center = new(400, 300);
+        float distanceFromCenter = Vector2.Distance(newPos, center);
+        if (distanceFromCenter > HexagonRadius)
+        {
+            Vector2 direction = Vector2.Normalize(newPos - center);
+            newPos = center + direction * (HexagonRadius - BallRadius);
+            _ballVel *= 0.5f; // Reduce velocity when hitting bounds
+        }
+
+        _ballPos = newPos;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Vector2 RotatePoint(Vector2 point, float angle)
+    {
+        return new Vector2(
+            point.X * MathF.Cos(angle) - point.Y * MathF.Sin(angle),
+            point.X * MathF.Sin(angle) + point.Y * MathF.Cos(angle)
+        );
+    }
+
+    private bool CheckCollision(Vector2 point, Vector2 lineStart, Vector2 lineEnd)
+    {
+        float distance = PointLineDistance(point, lineStart, lineEnd);
+        if (distance >= BallRadius) return false;
+
+        // Check if closest point is within line segment
+        Vector2 wall = lineEnd - lineStart;
+        float wallLength = wall.Length();
+        Vector2 wallDir = wall / wallLength;
+        Vector2 pointVec = point - lineStart;
+        float projection = Vector2.Dot(pointVec, wallDir);
+
+        return projection >= 0 && projection <= wallLength;
+    }
+
+    private float PointLineDistance(Vector2 point, Vector2 lineStart, Vector2 lineEnd)
+    {
+        Vector2 wall = lineEnd - lineStart;
+        Vector2 pointVec = point - lineStart;
+        float wallLength = wall.Length();
+
+        return MathF.Abs(pointVec.X * wall.Y - pointVec.Y * wall.X) / wallLength;
+    }
+}
