@@ -18,6 +18,7 @@
     <script src="_framework/blazor.web.js"></script>
     <script src="copilot-thinkdeeper.js"></script>
     <script src="deekseek.js" type="module"></script>
+
     <script>
         let animationFrameId;
 
@@ -32,6 +33,34 @@
         window.stopAnimation = () => {
             cancelAnimationFrame(animationFrameId);
         };
+    </script>
+    <script>
+         function initCanvas() {
+            window.ctx = document.getElementById('canvas').getContext('2d');
+        }
+
+         function clearCanvas() {
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        }
+
+         function drawHexagon(vertices) {
+            ctx.beginPath();
+            ctx.moveTo(vertices[0].x, vertices[0].y);
+            for (let i = 1; i < vertices.length; i++) {
+                ctx.lineTo(vertices[i].x, vertices[i].y);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+         function drawBall(x, y, radius) {
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff0000';
+            ctx.fill();
+        }
     </script>
 </body>
 

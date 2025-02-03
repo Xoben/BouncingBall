@@ -1,141 +1,154 @@
 ﻿@page "/deepseek-r1"
-@implements IDisposable
-@inject IJSRuntime JS
+@using System.Timers
+@inject IJSRuntime JSRuntime
 @rendermode InteractiveWebAssembly
-<canvas @ref="canvasRef" width="800" height="600" style="border:1px solid #ccc"></canvas>
+<canvas id="canvas" width="800" height="600"></canvas>
 
 @code {
-    // Canvas reference and JS module
-    private ElementReference canvasRef;
-    private IJSObjectReference? module;
 
-    // Simulation variables
-    private double ballX = 400;  // start at canvas center
-    private double ballY = 300;
-    private double ballVX = 4;   // initial horizontal velocity
-    private double ballVY = -4;  // initial vertical velocity
-    private double gravity = 0.2;
-    private double friction = 0.99;
-    private double ballRadius = 10;
-    private double hexagonRotation = 0;
-    private double hexagonRotationSpeed = 0.02;
-
-    // A timer for the animation loop (roughly 60 FPS)
-    private System.Threading.Timer? timer;
+    private Timer timer;
+    private double rotationAngle;
+    private double ballX, ballY;
+    private double ballVx, ballVy;
+    private const double BallRadius = 10;
+    private const double HexagonRadius = 200;
+    private const double Gravity = 0.5;
+    private const double Friction = 0.99;
+    private const double AngularVelocity = 0.02;
+    private const double BounceCoefficient = 0.8;
+    private readonly Point center = new(400, 300);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            // Import the JavaScript module.
-            module = await JS.InvokeAsync<IJSObjectReference>("import", "/canvasInterop.js");
-            // Start the update loop (every 16 ms ~ 60fps).
-            timer = new System.Threading.Timer(Update, null, 0, 16);
+            await JSRuntime.InvokeVoidAsync("initCanvas");
+            ResetBall();
         }
+        timer = new Timer(16);
+        timer.Elapsed += async (sender, e) => await Update();
+        timer.Start();
     }
 
-    private async void Update(object? state)
+    protected override void OnInitialized()
     {
-        // --- Update Physics ---
-        // Apply gravity.
-        ballVY += gravity;
-        // Update ball position.
-        ballX += ballVX;
-        ballY += ballVY;
-        // Apply friction.
-        ballVX *= friction;
-        ballVY *= friction;
+        // timer = new Timer(16);
+        // timer.Elapsed += async (sender, e) => await Update();
+        // timer.Start();
+    }
 
-        // Get hexagon vertices.
-        var hexagon = GetHexagonVertices(400, 300, 250, hexagonRotation);
-        // For each hexagon edge, check for collision and reflect velocity.
+    private void ResetBall()
+    {
+        ballX = center.X;
+        ballY = center.Y - HexagonRadius * 0.5;
+        ballVx = 5;
+        ballVy = 0;
+    }
+
+    private async Task Update()
+    {
+        rotationAngle += AngularVelocity;
+
+        // Apply physics
+        ballVy += Gravity;
+        ballVx *= Friction;
+        ballVy *= Friction;
+        ballX += ballVx;
+        ballY += ballVy;
+
+        CheckCollisions();
+        await Draw();
+    }
+
+    private void CheckCollisions()
+    {
+        var vertices = GetHexagonVertices();
+
         for (int i = 0; i < 6; i++)
         {
-            var p1 = hexagon[i];
-            var p2 = hexagon[(i + 1) % 6];
-            (double dist, double nx, double ny) = DistanceToLine(ballX, ballY, p1, p2);
-            if (dist < ballRadius)
+            var a = vertices[i];
+            var b = vertices[(i + 1) % 6];
+            var closest = ClosestPointOnSegment(a, b, new(ballX, ballY));
+            var dx = ballX - closest.X;
+            var dy = ballY - closest.Y;
+            var distance = Math.Sqrt(dx * dx + dy * dy);
+
+            if (distance <= BallRadius)
             {
-                // Check if the ball is moving toward the wall.
-                double dot = ballVX * nx + ballVY * ny;
-                if (dot < 0)
-                {
-                    // Reflect velocity.
-                    ballVX -= 2 * dot * nx;
-                    ballVY -= 2 * dot * ny;
-                    // Move the ball out of penetration.
-                    double overlap = ballRadius - dist;
-                    ballX += nx * overlap;
-                    ballY += ny * overlap;
-                }
+                var normal = CalculateNormal(a, b);
+                var collisionPoint = closest;
+                var wallVelocity = CalculateWallVelocity(collisionPoint);
+
+                // Calculate relative velocity
+                var relVx = ballVx - wallVelocity.X;
+                var relVy = ballVy - wallVelocity.Y;
+
+                // Reflect velocity
+                var dot = relVx * normal.X + relVy * normal.Y;
+                ballVx = relVx - 2 * dot * normal.X + wallVelocity.X;
+                ballVy = relVy - 2 * dot * normal.Y + wallVelocity.Y;
+
+                // Apply bounce coefficient
+                ballVx *= BounceCoefficient;
+                ballVy *= BounceCoefficient;
+
+                // Reposition ball
+                var overlap = BallRadius - distance;
+                ballX += normal.X * overlap;
+                ballY += normal.Y * overlap;
             }
         }
-
-        // Update the hexagon rotation.
-        hexagonRotation += hexagonRotationSpeed;
-
-        // --- Render ---
-        if (module is not null)
-        {
-            await module.InvokeVoidAsync("drawScene", canvasRef, ballX, ballY, ballRadius, hexagonRotation);
-        }
     }
 
-    /// <summary>
-    /// Calculates the perpendicular distance from point (x, y) to the line segment from p1 to p2.
-    /// Also returns the normalized vector (nx, ny) pointing from the line to the point.
-    /// </summary>
-    private (double dist, double nx, double ny) DistanceToLine(double x, double y, (double x, double y) p1, (double x, double y) p2)
+    private Point ClosestPointOnSegment(Point a, Point b, Point p)
     {
-        double A = x - p1.x;
-        double B = y - p1.y;
-        double C = p2.x - p1.x;
-        double D = p2.y - p1.y;
-        double dot = A * C + B * D;
-        double len_sq = C * C + D * D;
-        double param = len_sq != 0 ? dot / len_sq : -1;
-        double xx, yy;
-        if (param < 0)
-        {
-            xx = p1.x;
-            yy = p1.y;
-        }
-        else if (param > 1)
-        {
-            xx = p2.x;
-            yy = p2.y;
-        }
-        else
-        {
-            xx = p1.x + param * C;
-            yy = p1.y + param * D;
-        }
-        double dx = x - xx;
-        double dy = y - yy;
-        double dist = Math.Sqrt(dx * dx + dy * dy);
-        double nx = dist == 0 ? 0 : dx / dist;
-        double ny = dist == 0 ? 0 : dy / dist;
-        return (dist, nx, ny);
+        var ax = p.X - a.X;
+        var ay = p.Y - a.Y;
+        var bx = b.X - a.X;
+        var by = b.Y - a.Y;
+
+        var t = (ax * bx + ay * by) / (bx * bx + by * by);
+        t = Math.Max(0, Math.Min(1, t));
+
+        return new(a.X + bx * t, a.Y + by * t);
     }
 
-    /// <summary>
-    /// Returns the list of vertices for a hexagon centered at (centerX, centerY) with the given radius and rotation.
-    /// </summary>
-    private List<(double x, double y)> GetHexagonVertices(double centerX, double centerY, double radius, double rotation)
+    private Point CalculateNormal(Point a, Point b)
     {
-        var vertices = new List<(double x, double y)>();
+        var midpoint = new Point((a.X + b.X) / 2, (a.Y + b.Y) / 2);
+        var normal = new Point(center.X - midpoint.X, center.Y - midpoint.Y);
+        var length = Math.Sqrt(normal.X * normal.X + normal.Y * normal.Y);
+        return new(normal.X / length, normal.Y / length);
+    }
+
+    private Point CalculateWallVelocity(Point p)
+    {
+        var relX = p.X - center.X;
+        var relY = p.Y - center.Y;
+        return new(-AngularVelocity * relY, AngularVelocity * relX);
+    }
+
+    private List<Point> GetHexagonVertices()
+    {
+        var vertices = new List<Point>();
         for (int i = 0; i < 6; i++)
         {
-            double angle = rotation + i * Math.PI / 3;
-            double x = centerX + radius * Math.Cos(angle);
-            double y = centerY + radius * Math.Sin(angle);
-            vertices.Add((x, y));
+            var angle = rotationAngle + i * Math.PI / 3;
+            var x = center.X + HexagonRadius * Math.Cos(angle);
+            var y = center.Y + HexagonRadius * Math.Sin(angle);
+            vertices.Add(new(x, y));
         }
         return vertices;
     }
 
-    public void Dispose()
+    private async Task Draw()
     {
-        timer?.Dispose();
+        await JSRuntime.InvokeVoidAsync("clearCanvas");
+        var vertices = GetHexagonVertices().Select(v => new { x = v.X, y = v.Y }).ToArray();
+        await JSRuntime.InvokeVoidAsync("drawHexagon", vertices);
+        await JSRuntime.InvokeVoidAsync("drawBall", ballX, ballY, BallRadius);
     }
+
+    public record Point(double X, double Y);
+
 }
